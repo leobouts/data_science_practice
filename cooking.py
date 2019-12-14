@@ -11,6 +11,22 @@ import string
 import json
 import re
 
+# Computes the UCF score of n similar recipes
+def user_based_collaborative_filtering(n,matrix):
+	scores = []
+	for i,obj in enumerate(recipes):
+		jaccard_dot_matrix_sum = 0
+		jaccard_sum = 0
+		for j,obj in enumerate(recipes[i]):
+			for k in range(n):
+				m = set_of_n_similar_recipes[i][k]
+				#print(vectorized_matrix_m[m][j])
+				jaccard_dot_matrix_sum += most_similar_jaccard_values[j][k] * matrix[m][i]
+				jaccard_sum += most_similar_jaccard_values[j][k]
+
+			scores.append(jaccard_dot_matrix_sum/jaccard_sum)
+	return scores
+
 
 ## Computes Jaccard similarity
 def jaccard_similarity(list1, list2):
@@ -91,24 +107,29 @@ def clean_data():
 
 	return set_of_recipes
 
-# Create our own tokenizer for count vectorizer
-# so that each ingredient of the recipe gets
-# matched with only the right vocabulary element
-# for example "chicken broth" was matching with
-# "chicken" and "chicken broth", using this tokenizer
-# matches only with "chicken broth"
 
-def my_tokenizer(doc):
-	return doc
+
+def create_vectorized_matrix():
+	matrix =[]
+	for i,obj in enumerate(recipes):
+		vector = [0] * len(unique_igredients)
+		for j,obj in enumerate(recipes[i]):
+			if recipes[i][j] in unique_igredients:
+				vector[unique_igredients.tolist().index(recipes[i][j])] = 1
+		matrix.append(vector)
+	return matrix
+
 
 def main():
 	#will hold the jaccard similarity
 	global distance
-	global vectorized_matrix_m
+	global most_similar_jaccard_values
+	global set_of_n_similar_recipes
+	global recipes
+	global unique_igredients
 
 	recipes = clean_data()
 
-	vectorized_matrix_m =[]
 
 	#make the 2d list 1d so we can count occurences easily
 	flattened_recipes_set = recipes.copy()
@@ -124,26 +145,10 @@ def main():
 	numpy_of_flattened = numpy.array(flattened_recipes_set)
 	unique_igredients = numpy.unique(numpy_of_flattened)
 
-	#print(unique_igredients.tolist())
-	
-	# build vocab, ngrams are to tokenize sentences, example igredient with range 3: "knorr chicken broth"
-	# without the ngrams it would be tokenized as 3 different words.
 
-	cv = CountVectorizer(vocabulary=unique_igredients, ngram_range=(1, 6),lowercase=False,tokenizer=my_tokenizer)
-	taggedSentences = cv.fit_transform(unique_igredients)
-	
-	#summarize
-	print(len(unique_igredients))
-	print(len(popular))
-	print(len(cv.vocabulary_))
-	#print(cv.vocabulary_)
 
-	#encode document
-
-	for i in recipes:
-		vector = cv.transform(i)
-		mylist = sum(map(numpy.array, vector.toarray()))
-		vectorized_matrix_m.append(mylist.tolist())
+	#Create Vectorized Matrix
+	vectorized_matrix_m = create_vectorized_matrix()
 
 
 	#list that holds every score for every ingredient.
@@ -172,18 +177,14 @@ def main():
 	#set_of_n_similar_recipes has in each line i the n most similar recipes
 	#for the recipe in line i of the recipes array according to the jaccard metric
 
-	set_of_n_similar_recipes = get_n_similar_recipes(1,recipes)
-	most_similar_jaccard_values = get_n_similar_jaccard(1,recipes)
+	set_of_n_similar_recipes = get_n_similar_recipes(10,recipes)
+	most_similar_jaccard_values = get_n_similar_jaccard(10,recipes)
 
 	#print(set_of_n_similar_recipes)
-
-
-	#user-base collaborative filtering formula
-
-	for element in set_of_n_similar_recipes:
-		jaccard_sum_of_the_recipe = sum(element)
-		for i in element:
-			jaccard_dot_M = distance
+	#print(vectorized_matrix_m)
+	scores = []
+	scores = user_based_collaborative_filtering(10,vectorized_matrix_m)
+	print(scores)
 
 
 if __name__== "__main__":
