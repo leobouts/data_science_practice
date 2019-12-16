@@ -11,7 +11,7 @@ import string
 import json
 import re
 
-# Computes the UCF score of n similar recipes
+## Computes the UCF score of n similar recipes
 def user_based_collaborative_filtering(n,matrix):
 	scores = []
 	for i,obj in enumerate(recipes):
@@ -20,12 +20,27 @@ def user_based_collaborative_filtering(n,matrix):
 		for j,obj in enumerate(recipes[i]):
 			for k in range(n):
 				m = set_of_n_similar_recipes[i][k]
-				#print(vectorized_matrix_m[m][j])
 				jaccard_dot_matrix_sum += most_similar_jaccard_values[j][k] * matrix[m][i]
 				jaccard_sum += most_similar_jaccard_values[j][k]
-
 			scores.append(jaccard_dot_matrix_sum/jaccard_sum)
 	return scores
+
+
+def item_based_collaborative_filtering(n,matrix,unique):
+	scores = []
+	for i,obj in enumerate(recipes):
+		ingredients_without_current = list(filter(lambda x: x in recipes[i], unique)) 
+		for j in ingredients_without_current:
+			index_of_ingredient = unique.tolist().index(j)
+			jaccard_dot_matrix_sum = 0
+			jaccard_sum = 0
+			for k in range(n):
+				m = set_of_n_similar_ingredients[i][k]
+				jaccard_dot_matrix_sum +=  matrix[i][m]
+				jaccard_sum += most_similar_jaccard_values_ingredients[index_of_ingredient][k]
+			scores.append(jaccard_dot_matrix_sum/jaccard_sum)
+
+	return score_list
 
 
 ## Computes Jaccard similarity
@@ -34,8 +49,8 @@ def jaccard_similarity(list1, list2):
     # Jaccard = Intersection(set1,set2) / Union(set1,set2)
     return len(set1 & set2) / len(set1 | set2)
 
-## returns the n most similar recipes for every recipe
-def get_n_similar_recipes(n,data):
+## Returns the n most similar for every recipe or ingredient
+def get_n_similar(n,data,distance):
 	similar_recipes = []
 	for i,obj in enumerate(data):
 		a = numpy.array(distance[i])
@@ -52,9 +67,8 @@ def get_n_similar_recipes(n,data):
 
 	return similar_recipes
 
-## returns the Jaccard similarity of the n most similar recipes
+## Returns the Jaccard similarity of the n most similar recipes
 ## for every recipe
-
 def get_n_similar_jaccard(n,data):
 	values = []
 	for i,obj in enumerate(data):
@@ -66,7 +80,19 @@ def get_n_similar_jaccard(n,data):
 
 	return values
 
-## returns a list of 1000 recipes with one random ingredient deleted
+## Returns the Jaccard similarity of the n most similar ingredients
+def get_n_similar_jaccard_ingredients(n,data,distance):
+	values = []
+	for i,obj in enumerate(data):
+		#gives the jaccard of the n+1 largest values
+		jaccard = heapq.nlargest(n+1, distance[i])
+		#remove the most similar(itself)
+		jaccard.pop(0)
+		values.append(jaccard)
+
+	return values
+
+## Returns a list of 1000 recipes with one random ingredient deleted
 def clean_data():
 	f = open('train.json')
 	data = json.load(f)
@@ -108,7 +134,7 @@ def clean_data():
 	return set_of_recipes
 
 
-
+## Returns the binary matrix of the recipes-ingredients
 def create_vectorized_matrix():
 	matrix =[]
 	for i,obj in enumerate(recipes):
@@ -120,16 +146,53 @@ def create_vectorized_matrix():
 	return matrix
 
 
+def most_popular_score():
+	# Popular_without_recipes_ingredients is a dict but without the ingredients 
+	# of the current recipe of the loop.
+	score_list = []
+	#popular is a dictionary with : (ingredient,times igredient used in all the recipes)
+	popular = dict((x,flattened_recipes_set.count(x)) for x in set(flattened_recipes_set))
+	for i in recipes:
+		popular_without_recipes_ingredients = list(filter(lambda x: x in i, popular)) 
+		score_list.append(popular_without_recipes_ingredients)
+	return score_list
+
+## Returns a matrix with all the Jaccard similarities
+def compute_jaccard_matrix():
+	matrix=[]
+	for elem1 in recipes:
+		#list with the jaccard of the recipe elem1 with every other
+		jaccard_of_recipe = []
+		for elem2 in recipes:
+			jaccard_of_recipe.append(jaccard_similarity(elem1,elem2))
+		matrix.append(jaccard_of_recipe)
+	return matrix
+
+## Returns a matrix with all the Jaccard similarities of the ingredients
+def compute_jaccard_matrix_ingredients():
+	matrix=[]
+	for i in unique_igredients:
+		jaccard_of_ingredients = []
+		for j in unique_igredients:
+			jaccard_of_ingredients.append(jaccard_similarity(list(i),list(j)))
+		matrix.append(jaccard_of_ingredients)
+	return matrix
+
+
 def main():
-	#will hold the jaccard similarity
 	global distance
 	global most_similar_jaccard_values
 	global set_of_n_similar_recipes
+	global most_similar_jaccard_values_ingredients
+	global set_of_n_similar_ingredients
 	global recipes
 	global unique_igredients
+	global flattened_recipes_set
+	global distance
+	global scores
+
 
 	recipes = clean_data()
-
 
 	#make the 2d list 1d so we can count occurences easily
 	flattened_recipes_set = recipes.copy()
@@ -138,37 +201,21 @@ def main():
 	#remove whitespaces
 	#flattened_recipes_set = [x.strip() for x in flattened_recipes_set]
 
-	#popular is a dictionary with : (ingredient,times igredient used in all the recipes)
-	popular = dict((x,flattened_recipes_set.count(x)) for x in set(flattened_recipes_set))
-
 	#find the unique ingredients list
 	numpy_of_flattened = numpy.array(flattened_recipes_set)
 	unique_igredients = numpy.unique(numpy_of_flattened)
 
-
-
 	#Create Vectorized Matrix
 	vectorized_matrix_m = create_vectorized_matrix()
-
 
 	#list that holds every score for every ingredient.
 	#every line i of the array corresponds to the score
 	#the ingredients have for the recipe in line i of the recipes array.
-	most_popular_score_list = []
+	most_popular_score_list = most_popular_score()
 
-	#popular_without_recipes_ingredients is a dict but without the ingredients of the current recipe
-	#of the loop.
-	for i in recipes:
-		popular_without_recipes_ingredients = list(filter(lambda x: x in i, popular)) 
-		most_popular_score_list.append(popular_without_recipes_ingredients)
-			
-	distance = []
-	for elem1 in recipes:
-		#list with the jaccard of the recipe elem1 with every other
-		jaccard_of_recipe = []
-		for elem2 in recipes:
-			jaccard_of_recipe.append(jaccard_similarity(elem1,elem2))
-		distance.append(jaccard_of_recipe)
+	
+	distance = compute_jaccard_matrix()
+	distance_ingredients = compute_jaccard_matrix_ingredients()
 
 	#distance array now has in line i the jacard similarity of
 	#the recipe of line i in the recipes set with every other recipe
@@ -177,14 +224,22 @@ def main():
 	#set_of_n_similar_recipes has in each line i the n most similar recipes
 	#for the recipe in line i of the recipes array according to the jaccard metric
 
-	set_of_n_similar_recipes = get_n_similar_recipes(10,recipes)
-	most_similar_jaccard_values = get_n_similar_jaccard(10,recipes)
 
-	#print(set_of_n_similar_recipes)
-	#print(vectorized_matrix_m)
-	scores = []
-	scores = user_based_collaborative_filtering(10,vectorized_matrix_m)
-	print(scores)
+	for i in range(10, 100, 10):
+
+		set_of_n_similar_recipes = get_n_similar(i,recipes,distance)
+		most_similar_jaccard_values = get_n_similar_jaccard(i,recipes)
+
+
+		ucf_scores = user_based_collaborative_filtering(i,vectorized_matrix_m)
+
+	for i in range(10, 100, 10):
+		set_of_n_similar_ingredients = get_n_similar(i,recipes,distance_ingredients)
+		most_similar_jaccard_values_ingredients = get_n_similar_jaccard_ingredients(i,recipes,distance_ingredients)
+		
+		icf_scores = item_based_collaborative_filtering(i,vectorized_matrix_m,unique_igredients)
+
+
 
 
 if __name__== "__main__":
