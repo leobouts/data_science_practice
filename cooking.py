@@ -36,7 +36,7 @@ def item_based_collaborative_filtering(n,matrix,unique):
 			jaccard_sum = 0
 			for k in range(n):
 				m = set_of_n_similar_ingredients[i][k]
-				jaccard_dot_matrix_sum +=  matrix[i][m]
+				jaccard_dot_matrix_sum += most_similar_jaccard_values_ingredients[index_of_ingredient][k] * matrix[i][m]
 				jaccard_sum += most_similar_jaccard_values_ingredients[index_of_ingredient][k]
 			scores.append(jaccard_dot_matrix_sum/jaccard_sum)
 
